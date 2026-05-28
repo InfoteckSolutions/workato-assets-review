@@ -1,0 +1,157 @@
+{
+  "name": "DT|IDP Invoice Processing",
+  "schema": [
+    {
+      "id": "11fbe9a6-a16d-4d7e-86ea-afe42ec03005",
+      "title": "Record ID",
+      "type": "short-text",
+      "read_only": true,
+      "hidden": true
+    },
+    {
+      "id": "a5612739-5401-4ae7-bd07-782c1a6fb2d1",
+      "title": "Created time",
+      "type": "date-time",
+      "read_only": true,
+      "hidden": true
+    },
+    {
+      "id": "61aae604-a95e-4519-9091-bb0bf754a67f",
+      "title": "Last modified time",
+      "type": "date-time",
+      "read_only": true,
+      "hidden": true
+    },
+    {
+      "id": "155e96c8-a349-4ef3-a0d1-e0e8375fbb9e",
+      "title": "Invoice number",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "f9c695da-bb8f-49bb-b058-a61e14248706",
+      "title": "Invoice date",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "f8047d30-90bd-4763-980d-ec0ae5ae38fb",
+      "title": "Due date",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "d099870a-2e2c-4948-aa14-62783bf3a84a",
+      "title": "Amount",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "60b9faed-250b-40ca-97b0-c18d89935ad4",
+      "title": "ClientName",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "f0dab8d4-8e6c-4ce0-bc91-a82c11fe036b",
+      "title": "ClientEmail",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "8fad116e-0352-4bf0-b000-a9abdfe05478",
+      "title": "ItemDescription",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "e60f2bcd-b54f-423f-845e-73018f40eca1",
+      "title": "StreetAddress",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "737195ff-fd16-490b-bf2b-d21aeecc7053",
+      "title": "city",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "2576d75f-696c-4adb-ba05-3b1dd9b7f20f",
+      "title": "state",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "8e8cd686-8ddb-4e8f-a7b7-38f1a7b9d308",
+      "title": "zipcode",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "363aa277-ed0b-4ac8-baaa-17d4a2f22b45",
+      "title": "country",
+      "type": "short-text",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    },
+    {
+      "id": "d6d493cc-8b3a-4f37-b8e1-89ac41a2a52c",
+      "title": "FileType",
+      "type": "file",
+      "read_only": false,
+      "hidden": false,
+      "required": false,
+      "metadata": {
+      }
+    }
+  ],
+  "project_name": "Varun Sai"
+}

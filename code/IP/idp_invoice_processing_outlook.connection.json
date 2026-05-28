@@ -1,0 +1,5 @@
+{
+  "name": "IDP Invoice Processing outlook",
+  "provider": "outlook",
+  "root_folder": false
+}

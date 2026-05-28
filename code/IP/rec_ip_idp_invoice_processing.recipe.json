@@ -1,0 +1,2660 @@
+{
+  "name": "REC|IP|IDP Invoice Processing",
+  "description": "This recipe automates the processing of invoices received via email in Outlook.\n\n- The process begins by triggering when a new email with the subject containing \"Invoice\" and having attachments is received.\n- It initializes two lists: a \"Success List\" for successfully processed invoices and a \"Failed List\" for invoices that could not be processed.\n- The recipe retrieves the attachments from the email and iterates through each attachment.\n- For each attachment, it executes a Python script to validate and extract invoice data from PDF files. The script checks for specific keywords and patterns to confirm the document is a valid invoice.\n- If valid invoices are detected, they are split into individual pages, and each page is processed to extract structured data, which is then sent to an IDP (Intelligent Document Processing) service for further extraction.\n- The extracted data is evaluated for confidence scores. If the scores are above a defined threshold, the data is added to the \"Success List\" and a new record is created in the database. If any scores are low, the invoice details are added to the \"Failed List\".\n- In case of any errors during processing, an email notification is sent to a specified recipient.\n- Finally, the recipe logs messages related to the processed invoices for reporting purposes.\n\nOverall, this recipe streamlines the handling of invoice emails, ensuring that valid invoices are processed and recorded while tracking any failures for review.",
+  "version": 160,
+  "private": true,
+  "concurrency": 1,
+  "code": {
+    "number": 0,
+    "provider": "outlook",
+    "name": "new_email",
+    "as": "a8ff4f0d",
+    "keyword": "trigger",
+    "dynamicPickListSelection": {
+      "_obj_path": {
+        "ids": [
+          "mailfolders('AAMkADkzYzRkNWI1LWNkY2ItNDAzNy1iOWFkLWFhZTZjOWRiNDQxYQAuAAAAAADmGf2mfiCjSpBwQCm3OrZtAQA9slvQmLCOTZAvY47Y0e7zAAAAAAEMAAA=')/messages"
+        ],
+        "titles": [
+          "Inbox"
+        ]
+      }
+    },
+    "toggleCfg": {
+      "atp_scanning": true
+    },
+    "input": {
+      "atp_scanning": "false",
+      "_obj_path": "mailfolders('AAMkADkzYzRkNWI1LWNkY2ItNDAzNy1iOWFkLWFhZTZjOWRiNDQxYQAuAAAAAADmGf2mfiCjSpBwQCm3OrZtAQA9slvQmLCOTZAvY47Y0e7zAAAAAAEMAAA=')/messages"
+    },
+    "filter": {
+      "operand": "and",
+      "type": "compound",
+      "conditions": [
+        {
+          "operand": "contains",
+          "lhs": "=_dp('{\"pill_type\":\"output\",\"provider\":\"outlook\",\"line\":\"a8ff4f0d\",\"path\":[\"Subject\"]}')",
+          "rhs": "Invoice",
+          "uuid": "c9181cd2-345a-43ee-a626-1e01ccdd307d"
+        },
+        {
+          "operand": "present",
+          "lhs": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"outlook\",\"line\":\"a8ff4f0d\",\"path\":[\"HasAttachments\"]}')}",
+          "rhs": "",
+          "uuid": "a79f3862-9d71-4ed7-86fb-b966d3bf95cf"
+        }
+      ]
+    },
+    "block": [
+      {
+        "number": 1,
+        "as": "9f322f6a",
+        "keyword": "try",
+        "input": {
+        },
+        "block": [
+          {
+            "number": 2,
+            "provider": "workato_variable",
+            "name": "declare_list",
+            "as": "9f60344d",
+            "keyword": "action",
+            "input": {
+              "name": "Success List",
+              "list_item_schema_json": "[{\"control_type\":\"text\",\"label\":\"Invoice number\",\"name\":\"invoice_number\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"date\",\"label\":\"Invoice date\",\"render_input\":\"date_conversion\",\"parse_output\":\"date_conversion\",\"name\":\"invoice_date\",\"type\":\"date\",\"optional\":true},{\"control_type\":\"date\",\"label\":\"Due date\",\"render_input\":\"date_conversion\",\"parse_output\":\"date_conversion\",\"name\":\"due_date\",\"type\":\"date\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Client Name\",\"name\":\"client_name\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Client Email\",\"name\":\"client_email\",\"type\":\"string\",\"optional\":true},{\"properties\":[{\"control_type\":\"text\",\"label\":\"Street Address\",\"name\":\"street_address\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"City\",\"name\":\"city\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"State\",\"name\":\"state\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Zip Code\",\"name\":\"zipcode\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Country\",\"name\":\"country\",\"type\":\"string\",\"optional\":true}],\"label\":\"Address\",\"name\":\"address\",\"type\":\"object\",\"optional\":true},{\"label\":\"Line items\",\"name\":\"line_items\",\"type\":\"array\",\"optional\":true,\"of\":\"object\",\"properties\":[{\"control_type\":\"text\",\"label\":\"Item Description\",\"name\":\"item_description\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Quantity\",\"parse_output\":\"float_conversion\",\"name\":\"quantity\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Rate\",\"parse_output\":\"float_conversion\",\"name\":\"rate\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Amount\",\"parse_output\":\"float_conversion\",\"name\":\"amount\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"}]},{\"control_type\":\"text\",\"label\":\"Subtotal\",\"parse_output\":\"float_conversion\",\"name\":\"subtotal\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Tax\",\"parse_output\":\"float_conversion\",\"name\":\"tax\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Total\",\"parse_output\":\"float_conversion\",\"name\":\"total\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Balance due\",\"parse_output\":\"float_conversion\",\"name\":\"balance_due\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Currency\",\"name\":\"currency\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Terms\",\"name\":\"terms\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"File Type\",\"name\":\"filetype\",\"type\":\"string\",\"optional\":true}]"
+            },
+            "extended_output_schema": [
+              {
+                "hint": "",
+                "label": "Success List",
+                "name": "list_items",
+                "of": "object",
+                "optional": false,
+                "properties": [
+                  {
+                    "control_type": "text",
+                    "label": "Invoice number",
+                    "name": "invoice_number",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "date",
+                    "label": "Invoice date",
+                    "render_input": "date_conversion",
+                    "parse_output": "date_conversion",
+                    "name": "invoice_date",
+                    "type": "date",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "date",
+                    "label": "Due date",
+                    "render_input": "date_conversion",
+                    "parse_output": "date_conversion",
+                    "name": "due_date",
+                    "type": "date",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Client Name",
+                    "name": "client_name",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Client Email",
+                    "name": "client_email",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Street Address",
+                        "name": "street_address",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "City",
+                        "name": "city",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "State",
+                        "name": "state",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Zip Code",
+                        "name": "zipcode",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Country",
+                        "name": "country",
+                        "type": "string",
+                        "optional": true
+                      }
+                    ],
+                    "label": "Address",
+                    "name": "address",
+                    "type": "object",
+                    "optional": true
+                  },
+                  {
+                    "label": "Line items",
+                    "name": "line_items",
+                    "type": "array",
+                    "optional": true,
+                    "of": "object",
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Item Description",
+                        "name": "item_description",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Quantity",
+                        "parse_output": "float_conversion",
+                        "name": "quantity",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Rate",
+                        "parse_output": "float_conversion",
+                        "name": "rate",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Amount",
+                        "parse_output": "float_conversion",
+                        "name": "amount",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      }
+                    ]
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Subtotal",
+                    "parse_output": "float_conversion",
+                    "name": "subtotal",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Tax",
+                    "parse_output": "float_conversion",
+                    "name": "tax",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Total",
+                    "parse_output": "float_conversion",
+                    "name": "total",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Balance due",
+                    "parse_output": "float_conversion",
+                    "name": "balance_due",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Currency",
+                    "name": "currency",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Terms",
+                    "name": "terms",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "File Type",
+                    "name": "filetype",
+                    "type": "string",
+                    "optional": true
+                  }
+                ],
+                "type": "array"
+              }
+            ],
+            "extended_input_schema": [
+              {
+                "hint": "Set the initial items in the list. Defaults to an empty list if not supplied.",
+                "label": "Items",
+                "name": "list_items",
+                "of": "object",
+                "optional": true,
+                "properties": [
+                  {
+                    "control_type": "text",
+                    "label": "Invoice number",
+                    "name": "invoice_number",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "date",
+                    "label": "Invoice date",
+                    "render_input": "date_conversion",
+                    "parse_output": "date_conversion",
+                    "name": "invoice_date",
+                    "type": "date",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "date",
+                    "label": "Due date",
+                    "render_input": "date_conversion",
+                    "parse_output": "date_conversion",
+                    "name": "due_date",
+                    "type": "date",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Client Name",
+                    "name": "client_name",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Client Email",
+                    "name": "client_email",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Street Address",
+                        "name": "street_address",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "City",
+                        "name": "city",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "State",
+                        "name": "state",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Zip Code",
+                        "name": "zipcode",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Country",
+                        "name": "country",
+                        "type": "string",
+                        "optional": true
+                      }
+                    ],
+                    "label": "Address",
+                    "name": "address",
+                    "type": "object",
+                    "optional": true
+                  },
+                  {
+                    "label": "Line items",
+                    "name": "line_items",
+                    "type": "array",
+                    "optional": true,
+                    "of": "object",
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Item Description",
+                        "name": "item_description",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Quantity",
+                        "parse_output": "float_conversion",
+                        "name": "quantity",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Rate",
+                        "parse_output": "float_conversion",
+                        "name": "rate",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Amount",
+                        "parse_output": "float_conversion",
+                        "name": "amount",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      }
+                    ]
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Subtotal",
+                    "parse_output": "float_conversion",
+                    "name": "subtotal",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Tax",
+                    "parse_output": "float_conversion",
+                    "name": "tax",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Total",
+                    "parse_output": "float_conversion",
+                    "name": "total",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Balance due",
+                    "parse_output": "float_conversion",
+                    "name": "balance_due",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Currency",
+                    "name": "currency",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Terms",
+                    "name": "terms",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "File Type",
+                    "name": "filetype",
+                    "type": "string",
+                    "optional": true
+                  }
+                ],
+                "type": "array"
+              }
+            ],
+            "comment": "Stores successfully processed invoice details.",
+            "uuid": "85acb6f3-3767-4711-98a6-6a856d0c1803",
+            "skip": false
+          },
+          {
+            "number": 3,
+            "provider": "workato_variable",
+            "name": "declare_list",
+            "as": "23396d96",
+            "keyword": "action",
+            "input": {
+              "name": "Failed List",
+              "list_item_schema_json": "[{\"control_type\":\"text\",\"label\":\"Invoice number\",\"name\":\"invoice_number\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"date\",\"label\":\"Invoice date\",\"render_input\":\"date_conversion\",\"parse_output\":\"date_conversion\",\"name\":\"invoice_date\",\"type\":\"date\",\"optional\":true},{\"control_type\":\"date\",\"label\":\"Due date\",\"render_input\":\"date_conversion\",\"parse_output\":\"date_conversion\",\"name\":\"due_date\",\"type\":\"date\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Client Name\",\"name\":\"client_name\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Client Email\",\"name\":\"client_email\",\"type\":\"string\",\"optional\":true},{\"properties\":[{\"control_type\":\"text\",\"label\":\"Street Address\",\"name\":\"street_address\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"City\",\"name\":\"city\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"State\",\"name\":\"state\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Zip Code\",\"name\":\"zipcode\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Country\",\"name\":\"country\",\"type\":\"string\",\"optional\":true}],\"label\":\"Address\",\"name\":\"address\",\"type\":\"object\",\"optional\":true},{\"label\":\"Line items\",\"name\":\"line_items\",\"type\":\"array\",\"optional\":true,\"of\":\"object\",\"properties\":[{\"control_type\":\"text\",\"label\":\"Item Description\",\"name\":\"item_description\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Quantity\",\"parse_output\":\"float_conversion\",\"name\":\"quantity\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Rate\",\"parse_output\":\"float_conversion\",\"name\":\"rate\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Amount\",\"parse_output\":\"float_conversion\",\"name\":\"amount\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"}]},{\"control_type\":\"text\",\"label\":\"Subtotal\",\"parse_output\":\"float_conversion\",\"name\":\"subtotal\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Tax\",\"parse_output\":\"float_conversion\",\"name\":\"tax\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Total\",\"parse_output\":\"float_conversion\",\"name\":\"total\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Balance due\",\"parse_output\":\"float_conversion\",\"name\":\"balance_due\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Currency\",\"name\":\"currency\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Terms\",\"name\":\"terms\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"File Type\",\"name\":\"filetype\",\"type\":\"string\",\"optional\":true}]"
+            },
+            "extended_output_schema": [
+              {
+                "hint": "",
+                "label": "Failed List",
+                "name": "list_items",
+                "of": "object",
+                "optional": false,
+                "properties": [
+                  {
+                    "control_type": "text",
+                    "label": "Invoice number",
+                    "name": "invoice_number",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "date",
+                    "label": "Invoice date",
+                    "render_input": "date_conversion",
+                    "parse_output": "date_conversion",
+                    "name": "invoice_date",
+                    "type": "date",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "date",
+                    "label": "Due date",
+                    "render_input": "date_conversion",
+                    "parse_output": "date_conversion",
+                    "name": "due_date",
+                    "type": "date",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Client Name",
+                    "name": "client_name",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Client Email",
+                    "name": "client_email",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Street Address",
+                        "name": "street_address",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "City",
+                        "name": "city",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "State",
+                        "name": "state",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Zip Code",
+                        "name": "zipcode",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Country",
+                        "name": "country",
+                        "type": "string",
+                        "optional": true
+                      }
+                    ],
+                    "label": "Address",
+                    "name": "address",
+                    "type": "object",
+                    "optional": true
+                  },
+                  {
+                    "label": "Line items",
+                    "name": "line_items",
+                    "type": "array",
+                    "optional": true,
+                    "of": "object",
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Item Description",
+                        "name": "item_description",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Quantity",
+                        "parse_output": "float_conversion",
+                        "name": "quantity",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Rate",
+                        "parse_output": "float_conversion",
+                        "name": "rate",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Amount",
+                        "parse_output": "float_conversion",
+                        "name": "amount",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      }
+                    ]
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Subtotal",
+                    "parse_output": "float_conversion",
+                    "name": "subtotal",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Tax",
+                    "parse_output": "float_conversion",
+                    "name": "tax",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Total",
+                    "parse_output": "float_conversion",
+                    "name": "total",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Balance due",
+                    "parse_output": "float_conversion",
+                    "name": "balance_due",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Currency",
+                    "name": "currency",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Terms",
+                    "name": "terms",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "File Type",
+                    "name": "filetype",
+                    "type": "string",
+                    "optional": true
+                  }
+                ],
+                "type": "array"
+              }
+            ],
+            "extended_input_schema": [
+              {
+                "hint": "Set the initial items in the list. Defaults to an empty list if not supplied.",
+                "label": "Items",
+                "name": "list_items",
+                "of": "object",
+                "optional": true,
+                "properties": [
+                  {
+                    "control_type": "text",
+                    "label": "Invoice number",
+                    "name": "invoice_number",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "date",
+                    "label": "Invoice date",
+                    "render_input": "date_conversion",
+                    "parse_output": "date_conversion",
+                    "name": "invoice_date",
+                    "type": "date",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "date",
+                    "label": "Due date",
+                    "render_input": "date_conversion",
+                    "parse_output": "date_conversion",
+                    "name": "due_date",
+                    "type": "date",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Client Name",
+                    "name": "client_name",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Client Email",
+                    "name": "client_email",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Street Address",
+                        "name": "street_address",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "City",
+                        "name": "city",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "State",
+                        "name": "state",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Zip Code",
+                        "name": "zipcode",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Country",
+                        "name": "country",
+                        "type": "string",
+                        "optional": true
+                      }
+                    ],
+                    "label": "Address",
+                    "name": "address",
+                    "type": "object",
+                    "optional": true
+                  },
+                  {
+                    "label": "Line items",
+                    "name": "line_items",
+                    "type": "array",
+                    "optional": true,
+                    "of": "object",
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Item Description",
+                        "name": "item_description",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Quantity",
+                        "parse_output": "float_conversion",
+                        "name": "quantity",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Rate",
+                        "parse_output": "float_conversion",
+                        "name": "rate",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Amount",
+                        "parse_output": "float_conversion",
+                        "name": "amount",
+                        "type": "number",
+                        "optional": true,
+                        "render_input": "float_conversion"
+                      }
+                    ]
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Subtotal",
+                    "parse_output": "float_conversion",
+                    "name": "subtotal",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Tax",
+                    "parse_output": "float_conversion",
+                    "name": "tax",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Total",
+                    "parse_output": "float_conversion",
+                    "name": "total",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Balance due",
+                    "parse_output": "float_conversion",
+                    "name": "balance_due",
+                    "type": "number",
+                    "optional": true,
+                    "render_input": "float_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Currency",
+                    "name": "currency",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "Terms",
+                    "name": "terms",
+                    "type": "string",
+                    "optional": true
+                  },
+                  {
+                    "control_type": "text",
+                    "label": "File Type",
+                    "name": "filetype",
+                    "type": "string",
+                    "optional": true
+                  }
+                ],
+                "type": "array"
+              }
+            ],
+            "comment": "Stores failed invoice details and errors.",
+            "uuid": "b52417f8-bbcb-42d0-bfa8-82efa78a9fb3",
+            "skip": false
+          },
+          {
+            "number": 4,
+            "provider": "outlook",
+            "name": "get_attachments",
+            "as": "3bd892c9",
+            "keyword": "action",
+            "input": {
+              "email_id": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"outlook\",\"line\":\"a8ff4f0d\",\"path\":[\"Id\"]}')}"
+            },
+            "comment": "Downloads invoice PDF attachments from the email.",
+            "uuid": "efbdfe96-a50e-48f1-9ed5-866b5d84d21d",
+            "skip": false
+          },
+          {
+            "number": 5,
+            "as": "90fd1021",
+            "keyword": "foreach",
+            "repeat_mode": "simple",
+            "batch_size": "100",
+            "clear_scope": false,
+            "input": {
+              "source": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"outlook\",\"line\":\"3bd892c9\",\"path\":[\"Attachments\"]}')}"
+            },
+            "block": [
+              {
+                "number": 6,
+                "provider": "py_eval",
+                "name": "invoke_custom_py_code",
+                "as": "968114d5",
+                "keyword": "action",
+                "input": {
+                  "code": "from pypdf import PdfReader, PdfWriter\nimport io\nimport base64\nimport re\n\n\n# ---------------------------------------------------\n# STRICT INVOICE DETECTION\n# ---------------------------------------------------\n\ndef is_real_invoice(text):\n\n    if not text:\n        return False\n\n    text_lower = text.lower()\n\n    # ---------------------------------------------------\n    # Required invoice indicators\n    # ---------------------------------------------------\n\n    conditions = [\n\n        # Invoice keyword\n        bool(re.search(r'\\binvoice\\b', text_lower)),\n\n        # Invoice number pattern\n        bool(re.search(\n            r'(invoice\\s*#?|invoice\\s*number|invoice\\s*no)',\n            text_lower\n        )),\n\n        # Bill To / Ship To\n        (\n            'bill to' in text_lower\n            or 'ship to' in text_lower\n        ),\n\n        # Monetary indicators\n        (\n            'total' in text_lower\n            or 'balance due' in text_lower\n            or 'subtotal' in text_lower\n        ),\n\n        # Order identifier\n        (\n            'order id' in text_lower\n            or 'po number' in text_lower\n        )\n    ]\n\n    # ---------------------------------------------------\n    # REAL invoice must satisfy minimum conditions\n    # ---------------------------------------------------\n\n    score = sum(conditions)\n\n    # Require at least 4 strong indicators\n    if score >= 4:\n        return True\n\n    return False\n\n\n# ---------------------------------------------------\n# MAIN FUNCTION\n# ---------------------------------------------------\n\ndef main(input):\n\n    try:\n\n        # ---------------------------------------------------\n        # Validate Input\n        # ---------------------------------------------------\n\n        if not input:\n            return {\n                \"status\": \"INVALID_INPUT\",\n                \"message\": \"Input is empty\",\n                \"chunks\": []\n            }\n\n        filecontents = (\n            input.get(\"filecontents\")\n            or input.get(\"filecontent\")\n        )\n\n        original_file_name = input.get(\n            \"file_name\",\n            \"source.pdf\"\n        )\n\n        # Workato array handling\n        if isinstance(filecontents, list) and filecontents:\n            filecontents = filecontents[0]\n\n        # Extract content\n        if isinstance(filecontents, dict):\n            raw = (\n                filecontents.get(\"content\")\n                or filecontents.get(\"content_bytes\")\n            )\n        else:\n            raw = filecontents\n\n        # ---------------------------------------------------\n        # Empty Check\n        # ---------------------------------------------------\n\n        if not raw:\n            return {\n                \"status\": \"EMPTY_FILE\",\n                \"message\": \"No file content provided\",\n                \"chunks\": []\n            }\n\n        # ---------------------------------------------------\n        # Convert to Bytes\n        # ---------------------------------------------------\n\n        try:\n\n            if isinstance(raw, str):\n\n                raw = raw.strip()\n\n                # Hex\n                if raw.startswith(\"0x\"):\n                    pdf_bytes = bytes.fromhex(raw[2:])\n\n                # Base64\n                else:\n                    pdf_bytes = base64.b64decode(raw)\n\n            elif isinstance(raw, bytes):\n\n                pdf_bytes = raw\n\n            else:\n\n                return {\n                    \"status\": \"INVALID_FORMAT\",\n                    \"message\": \"Unsupported format\",\n                    \"chunks\": []\n                }\n\n        except Exception as e:\n\n            return {\n                \"status\": \"DECODE_ERROR\",\n                \"message\": str(e),\n                \"chunks\": []\n            }\n\n        # ---------------------------------------------------\n        # PDF Validation\n        # ---------------------------------------------------\n\n        if not pdf_bytes.startswith(b\"%PDF\"):\n\n            return {\n                \"status\": \"INVALID_PDF\",\n                \"message\": \"Invalid PDF file\",\n                \"chunks\": []\n            }\n\n        # ---------------------------------------------------\n        # Read PDF\n        # ---------------------------------------------------\n\n        try:\n\n            reader = PdfReader(io.BytesIO(pdf_bytes))\n\n        except Exception as e:\n\n            return {\n                \"status\": \"INVALID_PDF\",\n                \"message\": str(e),\n                \"chunks\": []\n            }\n\n        total_pages = len(reader.pages)\n\n        chunks = []\n\n        invoice_counter = 0\n\n        # ---------------------------------------------------\n        # Process Pages\n        # ---------------------------------------------------\n\n        for idx in range(total_pages):\n\n            try:\n\n                page = reader.pages[idx]\n\n                # Safe text extraction\n                try:\n                    text = page.extract_text() or \"\"\n                except:\n                    text = \"\"\n\n                # ---------------------------------------------------\n                # STRICT FILTER\n                # ---------------------------------------------------\n\n                if not is_real_invoice(text):\n                    continue\n\n                # ---------------------------------------------------\n                # REAL INVOICE FOUND\n                # ---------------------------------------------------\n\n                invoice_counter += 1\n\n                writer = PdfWriter()\n\n                writer.add_page(page)\n\n                buffer = io.BytesIO()\n\n                writer.write(buffer)\n\n                split_pdf_bytes = buffer.getvalue()\n\n                chunk_base64 = base64.b64encode(\n                    split_pdf_bytes\n                ).decode(\"utf-8\")\n\n                chunks.append({\n\n                    \"chunk_number\": invoice_counter,\n\n                    \"page_number\": idx + 1,\n\n                    \"start_page\": idx + 1,\n\n                    \"end_page\": idx + 1,\n\n                    \"file_name\": f\"invoice_{idx+1}.pdf\",\n\n                    \"original_file_name\": original_file_name,\n\n                    \"document_type\": \"invoice\",\n\n                    \"content\": chunk_base64\n                })\n\n            except Exception:\n                continue\n\n        # ---------------------------------------------------\n        # No Invoices\n        # ---------------------------------------------------\n\n        if not chunks:\n\n            return {\n                \"status\": \"NO_INVOICES_FOUND\",\n                \"message\": \"No valid invoice pages detected\",\n                \"total_pages\": total_pages,\n                \"chunks\": []\n            }\n\n        # ---------------------------------------------------\n        # Success\n        # ---------------------------------------------------\n\n        return {\n\n            \"status\": \"SUCCESS\",\n\n            \"message\": f\"{len(chunks)} valid invoices extracted\",\n\n            \"total_pages\": total_pages,\n\n            \"total_invoice_pages\": len(chunks),\n\n            \"chunks\": chunks\n        }\n\n    except Exception as e:\n\n        return {\n            \"status\": \"FAILED\",\n            \"message\": str(e),\n            \"chunks\": []\n        }",
+                  "name": "Test2",
+                  "code_output_schema_json": "[{\"control_type\":\"text\",\"label\":\"Status\",\"name\":\"status\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"number\",\"label\":\"Total chunks\",\"parse_output\":\"integer_conversion\",\"name\":\"total_chunks\",\"type\":\"integer\",\"optional\":true,\"render_input\":\"integer_conversion\"},{\"label\":\"Chunks\",\"name\":\"chunks\",\"type\":\"array\",\"optional\":true,\"of\":\"object\",\"properties\":[{\"control_type\":\"number\",\"label\":\"Chunk number\",\"parse_output\":\"integer_conversion\",\"name\":\"chunk_number\",\"type\":\"integer\",\"optional\":true,\"render_input\":\"integer_conversion\"},{\"control_type\":\"number\",\"label\":\"Start page\",\"parse_output\":\"integer_conversion\",\"name\":\"start_page\",\"type\":\"integer\",\"optional\":true,\"render_input\":\"integer_conversion\"},{\"control_type\":\"number\",\"label\":\"End page\",\"parse_output\":\"integer_conversion\",\"name\":\"end_page\",\"type\":\"integer\",\"optional\":true,\"render_input\":\"integer_conversion\"},{\"control_type\":\"text\",\"label\":\"Content (Base64 PDF)\",\"name\":\"content\",\"type\":\"string\",\"optional\":true}]}]",
+                  "code_input": {
+                    "schema": "[{\"control_type\":\"text\",\"label\":\"filecontent\",\"name\":\"filecontent\",\"type\":\"string\",\"optional\":true,\"parent\":[\"code_input\",\"data\"]}]",
+                    "data": {
+                      "filecontent": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"foreach\",\"line\":\"90fd1021\",\"path\":[\"ContentBytes\"]}')}"
+                    }
+                  }
+                },
+                "extended_output_schema": [
+                  {
+                    "label": "Output",
+                    "name": "output",
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Status",
+                        "name": "status",
+                        "type": "string",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "number",
+                        "label": "Total chunks",
+                        "parse_output": "integer_conversion",
+                        "name": "total_chunks",
+                        "type": "integer",
+                        "optional": true,
+                        "render_input": "integer_conversion"
+                      },
+                      {
+                        "label": "Chunks",
+                        "name": "chunks",
+                        "type": "array",
+                        "optional": true,
+                        "of": "object",
+                        "properties": [
+                          {
+                            "control_type": "number",
+                            "label": "Chunk number",
+                            "parse_output": "integer_conversion",
+                            "name": "chunk_number",
+                            "type": "integer",
+                            "optional": true,
+                            "render_input": "integer_conversion"
+                          },
+                          {
+                            "control_type": "number",
+                            "label": "Start page",
+                            "parse_output": "integer_conversion",
+                            "name": "start_page",
+                            "type": "integer",
+                            "optional": true,
+                            "render_input": "integer_conversion"
+                          },
+                          {
+                            "control_type": "number",
+                            "label": "End page",
+                            "parse_output": "integer_conversion",
+                            "name": "end_page",
+                            "type": "integer",
+                            "optional": true,
+                            "render_input": "integer_conversion"
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Content (Base64 PDF)",
+                            "name": "content",
+                            "type": "string",
+                            "optional": true
+                          }
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  }
+                ],
+                "extended_input_schema": [
+                  {
+                    "control_type": "form-schema-builder",
+                    "hint": "Define the input fields that will be passed to your Python code",
+                    "label": "Input fields",
+                    "name": "code_input",
+                    "optional": true,
+                    "override": true,
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Schema",
+                        "extends_schema": true,
+                        "type": "string",
+                        "name": "schema"
+                      },
+                      {
+                        "properties": [
+                          {
+                            "control_type": "text",
+                            "label": "filecontent",
+                            "name": "filecontent",
+                            "type": "string",
+                            "optional": true,
+                            "parent": [
+                              "code_input",
+                              "data"
+                            ]
+                          }
+                        ],
+                        "label": "Data",
+                        "type": "object",
+                        "name": "data"
+                      }
+                    ],
+                    "sticky": true,
+                    "type": "object"
+                  }
+                ],
+                "comment": "Splits invoice PDF into individual pages.",
+                "uuid": "727b7387-8bdd-4896-8784-d4cfcb3065f9",
+                "skip": false
+              },
+              {
+                "number": 7,
+                "provider": "py_eval",
+                "name": "invoke_custom_py_code",
+                "as": "de9e024a",
+                "keyword": "action",
+                "input": {
+                  "code": "from pypdf import PdfReader, PdfWriter\nimport io\nimport base64\n\ndef main(input):\n\n    \"\"\"\n    Split PDF into single-page PDFs for Workato IDP processing\n    \"\"\"\n\n    if not input:\n        return {\n            \"status\": \"INVALID_INPUT\",\n            \"message\": \"Input is empty\",\n            \"pages\": []\n        }\n\n    filecontents = input.get(\"filecontents\") or input.get(\"filecontent\")\n    original_file_name = input.get(\"file_name\", \"source.pdf\")\n\n    # Handle Workato array\n    if isinstance(filecontents, list) and filecontents:\n        filecontents = filecontents[0]\n\n    # Extract raw content\n    if isinstance(filecontents, dict):\n        raw = filecontents.get(\"content\")\n    else:\n        raw = filecontents\n\n    if not raw:\n        return {\n            \"status\": \"EMPTY_FILE\",\n            \"message\": \"No file content provided\",\n            \"pages\": []\n        }\n\n    # Convert to bytes\n    pdf_bytes = None\n\n    if isinstance(raw, bytes):\n        pdf_bytes = raw\n\n    elif isinstance(raw, str):\n\n        try:\n            pdf_bytes = base64.b64decode(raw, validate=True)\n\n        except Exception:\n\n            try:\n                pdf_bytes = raw.encode(\"latin1\")\n\n            except Exception:\n                return {\n                    \"status\": \"INVALID_FORMAT\",\n                    \"message\": \"Unable to decode file content\",\n                    \"pages\": []\n                }\n\n    else:\n        return {\n            \"status\": \"INVALID_FORMAT\",\n            \"message\": \"Unsupported file format\",\n            \"pages\": []\n        }\n\n    # Validate PDF\n    if not pdf_bytes.startswith(b\"%PDF\"):\n        return {\n            \"status\": \"INVALID_PDF\",\n            \"message\": \"Missing PDF header\",\n            \"pages\": []\n        }\n\n    # Read PDF\n    try:\n        reader = PdfReader(io.BytesIO(pdf_bytes))\n\n    except Exception as e:\n        return {\n            \"status\": \"INVALID_PDF\",\n            \"message\": str(e),\n            \"pages\": []\n        }\n\n    # Split Pages\n    output_pages = []\n\n    for idx, page in enumerate(reader.pages):\n\n        writer = PdfWriter()\n        writer.add_page(page)\n\n        buffer = io.BytesIO()\n        writer.write(buffer)\n\n        split_pdf_bytes = buffer.getvalue()\n\n        encoded = base64.b64encode(split_pdf_bytes).decode(\"utf-8\")\n\n        output_pages.append({\n            \"page_number\": idx + 1,\n            \"file_name\": f\"page_{idx+1}.pdf\",\n            \"original_file_name\": original_file_name,\n            \"content\": encoded\n        })\n\n    return {\n        \"status\": \"SUCCESS\",\n        \"total_pages\": len(output_pages),\n        \"pages\": output_pages\n    }",
+                  "name": "Test2",
+                  "code_output_schema_json": "[{\"control_type\":\"text\",\"label\":\"Invoice number\",\"type\":\"string\",\"name\":\"invoice_number\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Invoice date\",\"type\":\"string\",\"name\":\"invoice_date\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Due date\",\"type\":\"string\",\"name\":\"due_date\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Order date\",\"type\":\"string\",\"name\":\"order_date\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Total amount\",\"type\":\"string\",\"name\":\"total_amount\",\"optional\":true},{\"label\":\"Line items\",\"name\":\"line_items\",\"type\":\"array\",\"optional\":true,\"of\":\"object\",\"properties\":[{\"control_type\":\"text\",\"label\":\"Description\",\"type\":\"string\",\"name\":\"description\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Quantity\",\"type\":\"string\",\"name\":\"quantity\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Price\",\"type\":\"string\",\"name\":\"price\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Product code\",\"type\":\"string\",\"name\":\"product_code\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Unit price\",\"type\":\"string\",\"name\":\"unit_price\",\"optional\":true}]},{\"properties\":[{\"control_type\":\"text\",\"label\":\"Vendor name\",\"type\":\"string\",\"name\":\"vendor_name\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Street address 1\",\"type\":\"string\",\"name\":\"street_address_1\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Street address 2\",\"type\":\"string\",\"name\":\"street_address_2\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"City\",\"type\":\"string\",\"name\":\"city\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"State\",\"type\":\"string\",\"name\":\"state\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Zip code\",\"type\":\"string\",\"name\":\"zip_code\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Country\",\"type\":\"string\",\"name\":\"country\",\"optional\":true}],\"label\":\"Vendor address\",\"type\":\"object\",\"name\":\"vendor_address\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Vendor phone\",\"type\":\"string\",\"name\":\"vendor_phone\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Vendor URL\",\"type\":\"string\",\"name\":\"vendor_url\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Vendor gst number\",\"type\":\"string\",\"name\":\"vendor_gst_number\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Vendor email\",\"type\":\"string\",\"name\":\"vendor_email\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Recipient phone\",\"type\":\"string\",\"name\":\"recipient_phone\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Recipient URL\",\"type\":\"string\",\"name\":\"recipient_url\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Recipient gst number\",\"type\":\"string\",\"name\":\"recipient_gst_number\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Recipient email\",\"type\":\"string\",\"name\":\"recipient_email\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Purchase order number\",\"type\":\"string\",\"name\":\"purchase_order_number\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Subtotal\",\"type\":\"string\",\"name\":\"subtotal\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Tax amount\",\"type\":\"string\",\"name\":\"tax_amount\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Discount\",\"type\":\"string\",\"name\":\"discount\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Payment terms\",\"type\":\"string\",\"name\":\"payment_terms\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Notes\",\"type\":\"string\",\"name\":\"notes\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Shipping fee\",\"type\":\"string\",\"name\":\"shipping_fee\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Service charge\",\"type\":\"string\",\"name\":\"service_charge\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Account number\",\"type\":\"string\",\"name\":\"account_number\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Bank code\",\"type\":\"string\",\"name\":\"bank_code\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Payment method\",\"type\":\"string\",\"name\":\"payment_method\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Bank name\",\"type\":\"string\",\"name\":\"bank_name\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Branch name\",\"type\":\"string\",\"name\":\"branch_name\",\"optional\":true}]",
+                  "code_input": {
+                    "schema": "[{\"control_type\":\"text\",\"label\":\"filecontent\",\"name\":\"filecontent\",\"type\":\"string\",\"optional\":true,\"parent\":[\"code_input\",\"data\"]}]",
+                    "data": {
+                      "filecontent": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"foreach\",\"line\":\"90fd1021\",\"path\":[\"ContentBytes\"]}')}"
+                    }
+                  }
+                },
+                "extended_output_schema": [
+                  {
+                    "label": "Output",
+                    "name": "output",
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Invoice number",
+                        "type": "string",
+                        "name": "invoice_number",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Invoice date",
+                        "type": "string",
+                        "name": "invoice_date",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Due date",
+                        "type": "string",
+                        "name": "due_date",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Order date",
+                        "type": "string",
+                        "name": "order_date",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Total amount",
+                        "type": "string",
+                        "name": "total_amount",
+                        "optional": true
+                      },
+                      {
+                        "label": "Line items",
+                        "name": "line_items",
+                        "type": "array",
+                        "optional": true,
+                        "of": "object",
+                        "properties": [
+                          {
+                            "control_type": "text",
+                            "label": "Description",
+                            "type": "string",
+                            "name": "description",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Quantity",
+                            "type": "string",
+                            "name": "quantity",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Price",
+                            "type": "string",
+                            "name": "price",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Product code",
+                            "type": "string",
+                            "name": "product_code",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Unit price",
+                            "type": "string",
+                            "name": "unit_price",
+                            "optional": true
+                          }
+                        ]
+                      },
+                      {
+                        "properties": [
+                          {
+                            "control_type": "text",
+                            "label": "Vendor name",
+                            "type": "string",
+                            "name": "vendor_name",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Street address 1",
+                            "type": "string",
+                            "name": "street_address_1",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Street address 2",
+                            "type": "string",
+                            "name": "street_address_2",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "City",
+                            "type": "string",
+                            "name": "city",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "State",
+                            "type": "string",
+                            "name": "state",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Zip code",
+                            "type": "string",
+                            "name": "zip_code",
+                            "optional": true
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Country",
+                            "type": "string",
+                            "name": "country",
+                            "optional": true
+                          }
+                        ],
+                        "label": "Vendor address",
+                        "type": "object",
+                        "name": "vendor_address",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Vendor phone",
+                        "type": "string",
+                        "name": "vendor_phone",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Vendor URL",
+                        "type": "string",
+                        "name": "vendor_url",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Vendor gst number",
+                        "type": "string",
+                        "name": "vendor_gst_number",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Vendor email",
+                        "type": "string",
+                        "name": "vendor_email",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Recipient phone",
+                        "type": "string",
+                        "name": "recipient_phone",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Recipient URL",
+                        "type": "string",
+                        "name": "recipient_url",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Recipient gst number",
+                        "type": "string",
+                        "name": "recipient_gst_number",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Recipient email",
+                        "type": "string",
+                        "name": "recipient_email",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Purchase order number",
+                        "type": "string",
+                        "name": "purchase_order_number",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Subtotal",
+                        "type": "string",
+                        "name": "subtotal",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Tax amount",
+                        "type": "string",
+                        "name": "tax_amount",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Discount",
+                        "type": "string",
+                        "name": "discount",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Payment terms",
+                        "type": "string",
+                        "name": "payment_terms",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Notes",
+                        "type": "string",
+                        "name": "notes",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Shipping fee",
+                        "type": "string",
+                        "name": "shipping_fee",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Service charge",
+                        "type": "string",
+                        "name": "service_charge",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Account number",
+                        "type": "string",
+                        "name": "account_number",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Bank code",
+                        "type": "string",
+                        "name": "bank_code",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Payment method",
+                        "type": "string",
+                        "name": "payment_method",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Bank name",
+                        "type": "string",
+                        "name": "bank_name",
+                        "optional": true
+                      },
+                      {
+                        "control_type": "text",
+                        "label": "Branch name",
+                        "type": "string",
+                        "name": "branch_name",
+                        "optional": true
+                      }
+                    ],
+                    "type": "object"
+                  }
+                ],
+                "extended_input_schema": [
+                  {
+                    "control_type": "form-schema-builder",
+                    "hint": "Define the input fields that will be passed to your Python code",
+                    "label": "Input fields",
+                    "name": "code_input",
+                    "optional": true,
+                    "override": true,
+                    "properties": [
+                      {
+                        "control_type": "text",
+                        "label": "Schema",
+                        "extends_schema": true,
+                        "type": "string",
+                        "name": "schema"
+                      },
+                      {
+                        "properties": [
+                          {
+                            "control_type": "text",
+                            "label": "filecontent",
+                            "name": "filecontent",
+                            "type": "string",
+                            "optional": true,
+                            "parent": [
+                              "code_input",
+                              "data"
+                            ]
+                          }
+                        ],
+                        "label": "Data",
+                        "type": "object",
+                        "name": "data"
+                      }
+                    ],
+                    "sticky": true,
+                    "type": "object"
+                  }
+                ],
+                "comment": "Use Python to split PDFs into individual pages, encode them as Base64, and prepare content for further processing.",
+                "uuid": "521c16a0-f48a-4e44-94dc-9bec152735c1",
+                "skip": false
+              },
+              {
+                "number": 8,
+                "as": "f0712c57",
+                "keyword": "foreach",
+                "repeat_mode": "simple",
+                "clear_scope": false,
+                "input": {
+                  "source": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"py_eval\",\"line\":\"968114d5\",\"path\":[\"output\", \"chunks\"]}')}"
+                },
+                "extended_output_schema": [
+                  {
+                    "control_type": "number",
+                    "extends_schema": false,
+                    "label": "Chunk number",
+                    "name": "chunk_number",
+                    "optional": true,
+                    "parse_output": "integer_conversion",
+                    "type": "integer",
+                    "render_input": "integer_conversion"
+                  },
+                  {
+                    "control_type": "number",
+                    "extends_schema": false,
+                    "label": "Start page",
+                    "name": "start_page",
+                    "optional": true,
+                    "parse_output": "integer_conversion",
+                    "type": "integer",
+                    "render_input": "integer_conversion"
+                  },
+                  {
+                    "control_type": "number",
+                    "extends_schema": false,
+                    "label": "End page",
+                    "name": "end_page",
+                    "optional": true,
+                    "parse_output": "integer_conversion",
+                    "type": "integer",
+                    "render_input": "integer_conversion"
+                  },
+                  {
+                    "control_type": "text",
+                    "extends_schema": false,
+                    "label": "Content (Base64 PDF)",
+                    "name": "content",
+                    "optional": true,
+                    "type": "string"
+                  }
+                ],
+                "block": [
+                  {
+                    "number": 9,
+                    "provider": "workato_idp",
+                    "name": "process_document",
+                    "as": "3867602f",
+                    "keyword": "action",
+                    "input": {
+                      "document_type": "invoices",
+                      "_settings_version": "2",
+                      "idp_version": "v3",
+                      "object_schema_invoices": "[{\"control_type\":\"text\",\"label\":\"Invoice number\",\"name\":\"invoice_number\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"date\",\"label\":\"Invoice date\",\"render_input\":\"date_conversion\",\"parse_output\":\"date_conversion\",\"name\":\"invoice_date\",\"type\":\"date\",\"optional\":true},{\"control_type\":\"date\",\"label\":\"Due date\",\"render_input\":\"date_conversion\",\"parse_output\":\"date_conversion\",\"name\":\"due_date\",\"type\":\"date\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Client Name\",\"name\":\"client_name\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Client Email\",\"name\":\"client_email\",\"type\":\"string\",\"optional\":true},{\"properties\":[{\"control_type\":\"text\",\"label\":\"Street Address\",\"name\":\"street_address\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"City\",\"name\":\"city\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"State\",\"name\":\"state\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Zip Code\",\"name\":\"zipcode\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Country\",\"name\":\"country\",\"type\":\"string\",\"optional\":true}],\"label\":\"Address\",\"name\":\"address\",\"type\":\"object\",\"optional\":true},{\"label\":\"Line items\",\"name\":\"line_items\",\"type\":\"array\",\"optional\":true,\"of\":\"object\",\"properties\":[{\"control_type\":\"text\",\"label\":\"Item Description\",\"name\":\"item_description\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Quantity\",\"parse_output\":\"float_conversion\",\"name\":\"quantity\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Rate\",\"parse_output\":\"float_conversion\",\"name\":\"rate\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Amount\",\"parse_output\":\"float_conversion\",\"name\":\"amount\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"}]},{\"control_type\":\"text\",\"label\":\"Subtotal\",\"parse_output\":\"float_conversion\",\"name\":\"subtotal\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Tax\",\"parse_output\":\"float_conversion\",\"name\":\"tax\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Total\",\"parse_output\":\"float_conversion\",\"name\":\"total\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Balance due\",\"parse_output\":\"float_conversion\",\"name\":\"balance_due\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Currency\",\"name\":\"currency\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Terms\",\"name\":\"terms\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"File Type\",\"name\":\"filetype\",\"type\":\"string\",\"optional\":true}]",
+                      "file_contents": "=_dp('{\"pill_type\":\"output\",\"provider\":\"foreach\",\"line\":\"f0712c57\",\"path\":[\"content\"]}').decode_base64",
+                      "document_description": "This PDF may contain multiple invoices.\nEach invoice starts with the keyword 'INVOICE'\nfollowed by a unique invoice number.\n\nThe extraction engine must:\n- Detect every invoice independently\n- Split invoices by invoice number pattern\n- Process all pages\n- Return one structured object per invoice\n\nDo not stop after the first invoice.\nDo not merge multiple invoices together.",
+                      "file_name": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"foreach\",\"line\":\"f0712c57\",\"path\":[\"chunk_number\"]}')}.pdf"
+                    },
+                    "extended_output_schema": [
+                      {
+                        "label": "Values",
+                        "name": "values",
+                        "properties": [
+                          {
+                            "control_type": "text",
+                            "label": "Invoice number",
+                            "type": "string",
+                            "name": "invoice_number"
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Client name",
+                            "type": "string",
+                            "name": "client_name"
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Client email",
+                            "type": "string",
+                            "name": "client_email"
+                          },
+                          {
+                            "properties": [
+                              {
+                                "control_type": "text",
+                                "label": "Street address",
+                                "type": "string",
+                                "name": "street_address"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "City",
+                                "type": "string",
+                                "name": "city"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "State",
+                                "type": "string",
+                                "name": "state"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Zipcode",
+                                "type": "string",
+                                "name": "zipcode"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Country",
+                                "type": "string",
+                                "name": "country"
+                              }
+                            ],
+                            "label": "Address",
+                            "type": "object",
+                            "name": "address"
+                          },
+                          {
+                            "label": "Line items",
+                            "of": "object",
+                            "properties": [
+                              {
+                                "control_type": "text",
+                                "label": "Item description",
+                                "type": "string",
+                                "name": "item_description"
+                              },
+                              {
+                                "control_type": "number",
+                                "label": "Quantity",
+                                "parse_output": "float_conversion",
+                                "type": "number",
+                                "name": "quantity"
+                              },
+                              {
+                                "control_type": "number",
+                                "label": "Rate",
+                                "parse_output": "float_conversion",
+                                "type": "number",
+                                "name": "rate"
+                              },
+                              {
+                                "control_type": "number",
+                                "label": "Amount",
+                                "parse_output": "float_conversion",
+                                "type": "number",
+                                "name": "amount"
+                              }
+                            ],
+                            "type": "array",
+                            "name": "line_items"
+                          },
+                          {
+                            "control_type": "number",
+                            "label": "Subtotal",
+                            "parse_output": "float_conversion",
+                            "type": "number",
+                            "name": "subtotal"
+                          },
+                          {
+                            "control_type": "number",
+                            "label": "Tax",
+                            "parse_output": "float_conversion",
+                            "type": "number",
+                            "name": "tax"
+                          },
+                          {
+                            "control_type": "number",
+                            "label": "Total",
+                            "parse_output": "float_conversion",
+                            "type": "number",
+                            "name": "total"
+                          },
+                          {
+                            "control_type": "number",
+                            "label": "Balance due",
+                            "parse_output": "float_conversion",
+                            "type": "number",
+                            "name": "balance_due"
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Currency",
+                            "type": "string",
+                            "name": "currency"
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Terms",
+                            "type": "string",
+                            "name": "terms"
+                          },
+                          {
+                            "control_type": "text",
+                            "label": "Filetype",
+                            "type": "string",
+                            "name": "filetype"
+                          }
+                        ],
+                        "type": "object"
+                      }
+                    ],
+                    "extended_input_schema": [
+                      {
+                        "control_type": "schema-designer",
+                        "custom_properties": [
+                          {
+                            "name": "description",
+                            "label": "Description",
+                            "type": "string",
+                            "optional": true,
+                            "control_type": "plain-text"
+                          }
+                        ],
+                        "default": "[{\"control_type\":\"text\",\"label\":\"Invoice number\",\"name\":\"invoice_number\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"date\",\"label\":\"Invoice date\",\"render_input\":\"date_conversion\",\"parse_output\":\"date_conversion\",\"name\":\"invoice_date\",\"type\":\"date\",\"optional\":true},{\"control_type\":\"date\",\"label\":\"Due date\",\"render_input\":\"date_conversion\",\"parse_output\":\"date_conversion\",\"name\":\"due_date\",\"type\":\"date\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Client Name\",\"name\":\"client_name\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Client Email\",\"name\":\"client_email\",\"type\":\"string\",\"optional\":true},{\"properties\":[{\"control_type\":\"text\",\"label\":\"Street Address\",\"name\":\"street_address\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"City\",\"name\":\"city\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"State\",\"name\":\"state\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Zip Code\",\"name\":\"zipcode\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Country\",\"name\":\"country\",\"type\":\"string\",\"optional\":true}],\"label\":\"Address\",\"name\":\"address\",\"type\":\"object\",\"optional\":true},{\"label\":\"Line items\",\"name\":\"line_items\",\"type\":\"array\",\"optional\":true,\"of\":\"object\",\"properties\":[{\"control_type\":\"text\",\"label\":\"Item Description\",\"name\":\"item_description\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Quantity\",\"parse_output\":\"float_conversion\",\"name\":\"quantity\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Rate\",\"parse_output\":\"float_conversion\",\"name\":\"rate\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Amount\",\"parse_output\":\"float_conversion\",\"name\":\"amount\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"}]},{\"control_type\":\"text\",\"label\":\"Subtotal\",\"parse_output\":\"float_conversion\",\"name\":\"subtotal\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Tax\",\"parse_output\":\"float_conversion\",\"name\":\"tax\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Total\",\"parse_output\":\"float_conversion\",\"name\":\"total\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Balance due\",\"parse_output\":\"float_conversion\",\"name\":\"balance_due\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"},{\"control_type\":\"text\",\"label\":\"Currency\",\"name\":\"currency\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Terms\",\"name\":\"terms\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"File Type\",\"name\":\"filetype\",\"type\":\"string\",\"optional\":true}]",
+                        "empty_schema_title": "Describe all fields in your response",
+                        "exclude_fields": [
+                          "hint",
+                          "label"
+                        ],
+                        "exclude_fields_types": [
+                          "integer",
+                          "date",
+                          "date_time"
+                        ],
+                        "extends_schema": true,
+                        "hint": "Enter the fields that you want to identify from the file contents. Add descriptions for extracting the fields.",
+                        "label": "Fields to identify",
+                        "name": "object_schema_invoices",
+                        "optional": false,
+                        "sample_data_type": "json_http",
+                        "type": "string",
+                        "schema_neutral": true
+                      },
+                      {
+                        "control_type": "select",
+                        "default": "v2",
+                        "hint": "Select the IDP version to use for processing the document. If not specified, the latest version will be used.",
+                        "label": "IDP version",
+                        "name": "idp_version",
+                        "optional": false,
+                        "override": true,
+                        "pick_list": [
+                          [
+                            "OCR augmented LLM extraction",
+                            "v2"
+                          ],
+                          [
+                            "Advanced Line Item Parsing",
+                            "v3"
+                          ]
+                        ],
+                        "sticky": true,
+                        "type": "string"
+                      }
+                    ],
+                    "comment": "Use Workato's Intelligent Document Processing (IDP) to extract structured fields from invoices.",
+                    "uuid": "7097cd36-ac0c-493a-ae69-c107af95b789",
+                    "skip": false
+                  },
+                  {
+                    "number": 10,
+                    "provider": "py_eval",
+                    "name": "invoke_custom_py_code",
+                    "as": "6edef83f",
+                    "keyword": "action",
+                    "input": {
+                      "code": "def main(input):\n    \"\"\"\n    Identify low-confidence fields and mark overall status\n    as FAILED if any confidence score is < 0.95\n    \"\"\"\n\n    # ✅ 1. Guard against empty input\n    input = input or {}\n\n    # ✅ 2. Get extracted data safely\n    data = input.get(\"extracted_data\") or {}\n\n    # ✅ 3. Fixed threshold = 0.95\n    threshold = 0.95\n\n    cleaned_data = {}\n    low_confidence_fields = []\n\n    def process_field(key, value):\n\n        # Case 1: Field contains value + confidence\n        if isinstance(value, dict) and \"value\" in value:\n\n            field_value = value.get(\"value\")\n            confidence = float(value.get(\"confidence\", 1))\n\n            cleaned_data[key] = field_value\n\n            # 🔥 Mark as failed if confidence < 0.95\n            if confidence < threshold:\n                low_confidence_fields.append({\n                    \"field_name\": key,\n                    \"value\": field_value,\n                    \"confidence\": confidence\n                })\n\n        # Case 2: Nested list (line items)\n        elif isinstance(value, list):\n\n            cleaned_data[key] = []\n\n            for idx, item in enumerate(value):\n\n                # Handle non-dict items safely\n                if not isinstance(item, dict):\n                    cleaned_data[key].append(item)\n                    continue\n\n                item_clean = {}\n\n                for sub_key, sub_val in item.items():\n\n                    if isinstance(sub_val, dict) and \"value\" in sub_val:\n\n                        field_value = sub_val.get(\"value\")\n                        confidence = float(sub_val.get(\"confidence\", 1))\n\n                        item_clean[sub_key] = field_value\n\n                        # 🔥 Mark as failed if confidence < 0.95\n                        if confidence < threshold:\n                            low_confidence_fields.append({\n                                \"field_name\": f\"{key}[{idx}].{sub_key}\",\n                                \"value\": field_value,\n                                \"confidence\": confidence\n                            })\n\n                    else:\n                        item_clean[sub_key] = sub_val\n\n                cleaned_data[key].append(item_clean)\n\n        # Case 3: Plain value\n        else:\n            cleaned_data[key] = value\n\n    # ✅ Process all fields safely\n    if isinstance(data, dict):\n        for k, v in data.items():\n            process_field(k, v)\n\n    # 🔥 Final Decision\n    if len(low_confidence_fields) > 0:\n\n        status = \"FAILED\"\n        needs_review = \"True\"\n        message = \"Invoice failed due to confidence score below 0.95\"\n\n    else:\n\n        status = \"SUCCESS\"\n        needs_review = \"False\"\n        message = \"All confidence scores are above 0.95\"\n\n    return {\n        \"status\": status,\n        \"cleaned_data\": cleaned_data,\n        \"low_confidence_fields\": low_confidence_fields,\n        \"needs_review\": needs_review,\n        \"message\": message\n    }",
+                      "name": "Low confidence score ",
+                      "code_output_schema_json": "[{\"control_type\":\"text\",\"label\":\"Status\",\"name\":\"status\",\"type\":\"string\",\"optional\":true},{\"properties\":[],\"label\":\"Cleaned data\",\"name\":\"cleaned_data\",\"type\":\"object\",\"optional\":true},{\"label\":\"Low confidence fields\",\"name\":\"low_confidence_fields\",\"type\":\"array\",\"optional\":true,\"of\":\"object\",\"properties\":[{\"control_type\":\"text\",\"label\":\"Field name\",\"name\":\"field_name\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Value\",\"name\":\"value\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Confidence\",\"parse_output\":\"float_conversion\",\"name\":\"confidence\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"}]},{\"label\":\"Error invoice\",\"name\":\"error_invoice\",\"type\":\"array\",\"optional\":true,\"of\":\"object\",\"properties\":[{\"control_type\":\"text\",\"label\":\"Field name\",\"name\":\"field_name\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Value\",\"name\":\"value\",\"type\":\"string\",\"optional\":true},{\"control_type\":\"text\",\"label\":\"Confidence\",\"parse_output\":\"float_conversion\",\"name\":\"confidence\",\"type\":\"number\",\"optional\":true,\"render_input\":\"float_conversion\"}]},{\"control_type\":\"checkbox\",\"label\":\"Needs review\",\"render_input\":\"boolean_conversion\",\"parse_output\":\"boolean_conversion\",\"name\":\"needs_review\",\"type\":\"boolean\",\"optional\":true,\"toggle_hint\":\"Select from option list\",\"toggle_field\":{\"label\":\"Needs review\",\"control_type\":\"text\",\"toggle_hint\":\"Use custom value\",\"name\":\"needs_review\",\"type\":\"boolean\",\"optional\":true}}]"
+                    },
+                    "extended_output_schema": [
+                      {
+                        "label": "Output",
+                        "name": "output",
+                        "properties": [
+                          {
+                            "control_type": "text",
+                            "label": "Status",
+                            "name": "status",
+                            "type": "string",
+                            "optional": true
+                          },
+                          {
+                            "properties": [
+
+                            ],
+                            "label": "Cleaned data",
+                            "name": "cleaned_data",
+                            "type": "object",
+                            "optional": true
+                          },
+                          {
+                            "label": "Low confidence fields",
+                            "name": "low_confidence_fields",
+                            "type": "array",
+                            "optional": true,
+                            "of": "object",
+                            "properties": [
+                              {
+                                "control_type": "text",
+                                "label": "Field name",
+                                "name": "field_name",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Value",
+                                "name": "value",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Confidence",
+                                "parse_output": "float_conversion",
+                                "name": "confidence",
+                                "type": "number",
+                                "optional": true,
+                                "render_input": "float_conversion"
+                              }
+                            ]
+                          },
+                          {
+                            "label": "Error invoice",
+                            "name": "error_invoice",
+                            "type": "array",
+                            "optional": true,
+                            "of": "object",
+                            "properties": [
+                              {
+                                "control_type": "text",
+                                "label": "Field name",
+                                "name": "field_name",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Value",
+                                "name": "value",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Confidence",
+                                "parse_output": "float_conversion",
+                                "name": "confidence",
+                                "type": "number",
+                                "optional": true,
+                                "render_input": "float_conversion"
+                              }
+                            ]
+                          },
+                          {
+                            "control_type": "checkbox",
+                            "label": "Needs review",
+                            "render_input": "boolean_conversion",
+                            "parse_output": "boolean_conversion",
+                            "name": "needs_review",
+                            "type": "boolean",
+                            "optional": true,
+                            "toggle_hint": "Select from option list",
+                            "toggle_field": {
+                              "label": "Needs review",
+                              "control_type": "text",
+                              "toggle_hint": "Use custom value",
+                              "name": "needs_review",
+                              "type": "boolean",
+                              "optional": true
+                            }
+                          }
+                        ],
+                        "type": "object"
+                      }
+                    ],
+                    "extended_input_schema": [
+                      {
+                        "control_type": "form-schema-builder",
+                        "hint": "Define the input fields that will be passed to your Python code",
+                        "label": "Input fields",
+                        "name": "code_input",
+                        "optional": true,
+                        "override": true,
+                        "properties": [
+                          {
+                            "control_type": "text",
+                            "label": "Schema",
+                            "extends_schema": true,
+                            "type": "string",
+                            "name": "schema"
+                          },
+                          {
+                            "properties": [
+
+                            ],
+                            "label": "Data",
+                            "type": "object",
+                            "name": "data"
+                          }
+                        ],
+                        "sticky": true,
+                        "type": "object"
+                      }
+                    ],
+                    "comment": "Identify low-confidence fields in Workato IDP's output to flag anomalies for additional review.",
+                    "uuid": "9bbe1059-7943-41fa-9075-096f5f5632f5",
+                    "skip": false
+                  },
+                  {
+                    "number": 11,
+                    "as": "b9c36d9b",
+                    "keyword": "if",
+                    "input": {
+                      "operand": "and",
+                      "type": "compound",
+                      "conditions": [
+                        {
+                          "operand": "equals_to",
+                          "lhs": "=_dp('{\"pill_type\":\"output\",\"provider\":\"py_eval\",\"line\":\"6edef83f\",\"path\":[\"output\",\"status\"]}')",
+                          "rhs": "SUCCESS"
+                        }
+                      ]
+                    },
+                    "block": [
+                      {
+                        "number": 12,
+                        "provider": "workato_variable",
+                        "name": "insert_to_list",
+                        "as": "88cf7a93",
+                        "keyword": "action",
+                        "dynamicPickListSelection": {
+                          "name": "Success List (step 3)"
+                        },
+                        "input": {
+                          "location": "end",
+                          "name": "85acb6f3-3767-4711-98a6-6a856d0c1803:9f60344d"
+                        },
+                        "extended_input_schema": [
+                          {
+                            "hint": "",
+                            "label": "List item",
+                            "name": "list_item",
+                            "optional": false,
+                            "properties": [
+                              {
+                                "control_type": "text",
+                                "label": "Invoice number",
+                                "name": "invoice_number",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "date",
+                                "label": "Invoice date",
+                                "render_input": "date_conversion",
+                                "parse_output": "date_conversion",
+                                "name": "invoice_date",
+                                "type": "date",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "date",
+                                "label": "Due date",
+                                "render_input": "date_conversion",
+                                "parse_output": "date_conversion",
+                                "name": "due_date",
+                                "type": "date",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Client Name",
+                                "name": "client_name",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Client Email",
+                                "name": "client_email",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "properties": [
+                                  {
+                                    "control_type": "text",
+                                    "label": "Street Address",
+                                    "name": "street_address",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "City",
+                                    "name": "city",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "State",
+                                    "name": "state",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Zip Code",
+                                    "name": "zipcode",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Country",
+                                    "name": "country",
+                                    "type": "string",
+                                    "optional": true
+                                  }
+                                ],
+                                "label": "Address",
+                                "name": "address",
+                                "type": "object",
+                                "optional": true
+                              },
+                              {
+                                "label": "Line items",
+                                "name": "line_items",
+                                "type": "array",
+                                "optional": true,
+                                "of": "object",
+                                "properties": [
+                                  {
+                                    "control_type": "text",
+                                    "label": "Item Description",
+                                    "name": "item_description",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Quantity",
+                                    "parse_output": "float_conversion",
+                                    "name": "quantity",
+                                    "type": "number",
+                                    "optional": true,
+                                    "render_input": "float_conversion"
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Rate",
+                                    "parse_output": "float_conversion",
+                                    "name": "rate",
+                                    "type": "number",
+                                    "optional": true,
+                                    "render_input": "float_conversion"
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Amount",
+                                    "parse_output": "float_conversion",
+                                    "name": "amount",
+                                    "type": "number",
+                                    "optional": true,
+                                    "render_input": "float_conversion"
+                                  }
+                                ]
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Subtotal",
+                                "parse_output": "float_conversion",
+                                "name": "subtotal",
+                                "type": "number",
+                                "optional": true,
+                                "render_input": "float_conversion"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Tax",
+                                "parse_output": "float_conversion",
+                                "name": "tax",
+                                "type": "number",
+                                "optional": true,
+                                "render_input": "float_conversion"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Total",
+                                "parse_output": "float_conversion",
+                                "name": "total",
+                                "type": "number",
+                                "optional": true,
+                                "render_input": "float_conversion"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Balance due",
+                                "parse_output": "float_conversion",
+                                "name": "balance_due",
+                                "type": "number",
+                                "optional": true,
+                                "render_input": "float_conversion"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Currency",
+                                "name": "currency",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Terms",
+                                "name": "terms",
+                                "type": "string",
+                                "optional": true
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "File Type",
+                                "name": "filetype",
+                                "type": "string",
+                                "optional": true
+                              }
+                            ],
+                            "type": "object"
+                          }
+                        ],
+                        "comment": "Add details of successfully processed invoices to the 'Success List'.",
+                        "uuid": "444e4bb0-86f0-48d0-ac69-c6452c6cbbd1",
+                        "skip": false
+                      },
+                      {
+                        "number": 13,
+                        "provider": "workato_db_table",
+                        "name": "add_record",
+                        "as": "53eab957",
+                        "keyword": "action",
+                        "dynamicPickListSelection": {
+                          "table_id": "DT|IDPInvoice|success"
+                        },
+                        "input": {
+                          "table_id": {
+                            "zip_name": "dt_idp_invoice_processing.workato_db_table.json",
+                            "name": "DT|IDP Invoice Processing",
+                            "folder": ""
+                          },
+                          "parameters": {
+                            "155e96c8_a349_4ef3_a0d1_e0e8375fbb9e": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\", \"invoice_number\"]}')}",
+                            "f9c695da_bb8f_49bb_b058_a61e14248706": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"py_eval\",\"line\":\"de9e024a\",\"path\":[\"output\",\"invoice_date\"]}')}",
+                            "f8047d30_90bd_4763_980d_ec0ae5ae38fb": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"py_eval\",\"line\":\"de9e024a\",\"path\":[\"output\",\"due_date\"]}')}",
+                            "d099870a_2e2c_4948_aa14_62783bf3a84a": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"total\"]}')}",
+                            "60b9faed_250b_40ca_97b0_c18d89935ad4": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"client_name\"]}')}",
+                            "d6d493cc_8b3a_4f37_b8e1_89ac41a2a52c": {
+                              "file_content": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"outlook\",\"line\":\"3bd892c9\",\"path\":[\"Attachments\",{\"path_element_type\":\"current_item\"},\"ContentType\"]}')}",
+                              "filename": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"outlook\",\"line\":\"3bd892c9\",\"path\":[\"Attachments\",{\"path_element_type\":\"current_item\"},\"Name\"]}')}"
+                            },
+                            "363aa277_ed0b_4ac8_baaa_17d4a2f22b45": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"address\",\"country\"]}')}",
+                            "737195ff_fd16_490b_bf2b_d21aeecc7053": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"address\",\"city\"]}')}",
+                            "2576d75f_696c_4adb_ba05_3b1dd9b7f20f": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"address\",\"state\"]}')}",
+                            "8e8cd686_8ddb_4e8f_a7b7_38f1a7b9d308": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"address\",\"zipcode\"]}')}",
+                            "e60f2bcd_b54f_423f_845e_73018f40eca1": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"address\",\"street_address\"]}')}",
+                            "f0dab8d4_8e6c_4ce0_bc91_a82c11fe036b": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"client_email\"]}')}"
+                          }
+                        },
+                        "extended_output_schema": [
+                          {
+                            "label": "Record",
+                            "name": "record",
+                            "properties": [
+                              {
+                                "control_type": "text",
+                                "label": "Record ID",
+                                "type": "string",
+                                "name": "11fbe9a6_a16d_4d7e_86ea_afe42ec03005"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Invoice number",
+                                "type": "string",
+                                "name": "155e96c8_a349_4ef3_a0d1_e0e8375fbb9e"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Invoice date",
+                                "type": "string",
+                                "name": "f9c695da_bb8f_49bb_b058_a61e14248706"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Due date",
+                                "type": "string",
+                                "name": "f8047d30_90bd_4763_980d_ec0ae5ae38fb"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Amount",
+                                "type": "string",
+                                "name": "d099870a_2e2c_4948_aa14_62783bf3a84a"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "ClientName",
+                                "type": "string",
+                                "name": "60b9faed_250b_40ca_97b0_c18d89935ad4"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "ClientEmail",
+                                "type": "string",
+                                "name": "f0dab8d4_8e6c_4ce0_bc91_a82c11fe036b"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "ItemDescription",
+                                "type": "string",
+                                "name": "8fad116e_0352_4bf0_b000_a9abdfe05478"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "StreetAddress",
+                                "type": "string",
+                                "name": "e60f2bcd_b54f_423f_845e_73018f40eca1"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "city",
+                                "type": "string",
+                                "name": "737195ff_fd16_490b_bf2b_d21aeecc7053"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "state",
+                                "type": "string",
+                                "name": "2576d75f_696c_4adb_ba05_3b1dd9b7f20f"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "zipcode",
+                                "type": "string",
+                                "name": "8e8cd686_8ddb_4e8f_a7b7_38f1a7b9d308"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "country",
+                                "type": "string",
+                                "name": "363aa277_ed0b_4ac8_baaa_17d4a2f22b45"
+                              },
+                              {
+                                "properties": [
+                                  {
+                                    "control_type": "text",
+                                    "label": "File name",
+                                    "type": "string",
+                                    "name": "filename"
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "File contents",
+                                    "type": "string",
+                                    "name": "file_content"
+                                  }
+                                ],
+                                "label": "FileType",
+                                "custom_type": "file",
+                                "type": "object",
+                                "name": "d6d493cc_8b3a_4f37_b8e1_89ac41a2a52c"
+                              },
+                              {
+                                "control_type": "date_time",
+                                "label": "Created at",
+                                "render_input": "date_time_conversion",
+                                "parse_output": "date_time_conversion",
+                                "type": "date_time",
+                                "name": "a5612739_5401_4ae7_bd07_782c1a6fb2d1"
+                              },
+                              {
+                                "control_type": "date_time",
+                                "label": "Updated at",
+                                "render_input": "date_time_conversion",
+                                "parse_output": "date_time_conversion",
+                                "type": "date_time",
+                                "name": "61aae604_a95e_4519_9091_bb0bf754a67f"
+                              }
+                            ],
+                            "type": "object"
+                          }
+                        ],
+                        "extended_input_schema": [
+                          {
+                            "hint": "Fill the fields for the new record",
+                            "label": "New record fields",
+                            "name": "parameters",
+                            "properties": [
+                              {
+                                "control_type": "text",
+                                "label": "Invoice number",
+                                "optional": true,
+                                "sticky": true,
+                                "type": "string",
+                                "name": "155e96c8_a349_4ef3_a0d1_e0e8375fbb9e"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Invoice date",
+                                "optional": true,
+                                "sticky": true,
+                                "type": "string",
+                                "name": "f9c695da_bb8f_49bb_b058_a61e14248706"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Due date",
+                                "optional": true,
+                                "sticky": true,
+                                "type": "string",
+                                "name": "f8047d30_90bd_4763_980d_ec0ae5ae38fb"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "Amount",
+                                "optional": true,
+                                "sticky": true,
+                                "type": "string",
+                                "name": "d099870a_2e2c_4948_aa14_62783bf3a84a"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "ClientName",
+                                "optional": true,
+                                "sticky": true,
+                                "type": "string",
+                                "name": "60b9faed_250b_40ca_97b0_c18d89935ad4"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "ClientEmail",
+                                "optional": true,
+                                "sticky": false,
+                                "type": "string",
+                                "name": "f0dab8d4_8e6c_4ce0_bc91_a82c11fe036b"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "ItemDescription",
+                                "optional": true,
+                                "sticky": false,
+                                "type": "string",
+                                "name": "8fad116e_0352_4bf0_b000_a9abdfe05478"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "StreetAddress",
+                                "optional": true,
+                                "sticky": false,
+                                "type": "string",
+                                "name": "e60f2bcd_b54f_423f_845e_73018f40eca1"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "city",
+                                "optional": true,
+                                "sticky": false,
+                                "type": "string",
+                                "name": "737195ff_fd16_490b_bf2b_d21aeecc7053"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "state",
+                                "optional": true,
+                                "sticky": false,
+                                "type": "string",
+                                "name": "2576d75f_696c_4adb_ba05_3b1dd9b7f20f"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "zipcode",
+                                "optional": true,
+                                "sticky": false,
+                                "type": "string",
+                                "name": "8e8cd686_8ddb_4e8f_a7b7_38f1a7b9d308"
+                              },
+                              {
+                                "control_type": "text",
+                                "label": "country",
+                                "optional": true,
+                                "sticky": false,
+                                "type": "string",
+                                "name": "363aa277_ed0b_4ac8_baaa_17d4a2f22b45"
+                              },
+                              {
+                                "properties": [
+                                  {
+                                    "control_type": "text",
+                                    "label": "File name",
+                                    "type": "string",
+                                    "name": "filename"
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "File contents",
+                                    "supports_byte_streaming": true,
+                                    "type": "string",
+                                    "name": "file_content"
+                                  }
+                                ],
+                                "label": "FileType",
+                                "optional": true,
+                                "custom_type": "file",
+                                "type": "object",
+                                "name": "d6d493cc_8b3a_4f37_b8e1_89ac41a2a52c"
+                              }
+                            ],
+                            "type": "object"
+                          }
+                        ],
+                        "visible_config_fields": [
+                          "table_id",
+                          "parameters",
+                          "parameters.155e96c8_a349_4ef3_a0d1_e0e8375fbb9e",
+                          "parameters.f9c695da_bb8f_49bb_b058_a61e14248706",
+                          "parameters.f8047d30_90bd_4763_980d_ec0ae5ae38fb",
+                          "parameters.d099870a_2e2c_4948_aa14_62783bf3a84a",
+                          "parameters.60b9faed_250b_40ca_97b0_c18d89935ad4",
+                          "parameters.d6d493cc_8b3a_4f37_b8e1_89ac41a2a52c",
+                          "parameters.d6d493cc_8b3a_4f37_b8e1_89ac41a2a52c.filename",
+                          "parameters.d6d493cc_8b3a_4f37_b8e1_89ac41a2a52c.file_content",
+                          "parameters.363aa277_ed0b_4ac8_baaa_17d4a2f22b45",
+                          "parameters.8e8cd686_8ddb_4e8f_a7b7_38f1a7b9d308",
+                          "parameters.2576d75f_696c_4adb_ba05_3b1dd9b7f20f",
+                          "parameters.737195ff_fd16_490b_bf2b_d21aeecc7053",
+                          "parameters.e60f2bcd_b54f_423f_845e_73018f40eca1",
+                          "parameters.f0dab8d4_8e6c_4ce0_bc91_a82c11fe036b"
+                        ],
+                        "comment": "Add a record of successfully processed invoices to a designated data table for storage or reporting.",
+                        "uuid": "6dbcb109-4a8b-48f6-9216-def6d45e3841",
+                        "skip": false
+                      },
+                      {
+                        "number": 14,
+                        "as": "7be1842a",
+                        "keyword": "else",
+                        "input": {
+                        },
+                        "block": [
+                          {
+                            "number": 15,
+                            "provider": "workato_variable",
+                            "name": "insert_to_list",
+                            "as": "a0003f57",
+                            "keyword": "action",
+                            "dynamicPickListSelection": {
+                              "name": "Failed List (step 4)"
+                            },
+                            "input": {
+                              "location": "end",
+                              "name": "b52417f8-bbcb-42d0-bfa8-82efa78a9fb3:23396d96"
+                            },
+                            "extended_input_schema": [
+                              {
+                                "hint": "",
+                                "label": "List item",
+                                "name": "list_item",
+                                "optional": false,
+                                "properties": [
+                                  {
+                                    "control_type": "text",
+                                    "label": "Invoice number",
+                                    "name": "invoice_number",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "date",
+                                    "label": "Invoice date",
+                                    "render_input": "date_conversion",
+                                    "parse_output": "date_conversion",
+                                    "name": "invoice_date",
+                                    "type": "date",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "date",
+                                    "label": "Due date",
+                                    "render_input": "date_conversion",
+                                    "parse_output": "date_conversion",
+                                    "name": "due_date",
+                                    "type": "date",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Client Name",
+                                    "name": "client_name",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Client Email",
+                                    "name": "client_email",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "properties": [
+                                      {
+                                        "control_type": "text",
+                                        "label": "Street Address",
+                                        "name": "street_address",
+                                        "type": "string",
+                                        "optional": true
+                                      },
+                                      {
+                                        "control_type": "text",
+                                        "label": "City",
+                                        "name": "city",
+                                        "type": "string",
+                                        "optional": true
+                                      },
+                                      {
+                                        "control_type": "text",
+                                        "label": "State",
+                                        "name": "state",
+                                        "type": "string",
+                                        "optional": true
+                                      },
+                                      {
+                                        "control_type": "text",
+                                        "label": "Zip Code",
+                                        "name": "zipcode",
+                                        "type": "string",
+                                        "optional": true
+                                      },
+                                      {
+                                        "control_type": "text",
+                                        "label": "Country",
+                                        "name": "country",
+                                        "type": "string",
+                                        "optional": true
+                                      }
+                                    ],
+                                    "label": "Address",
+                                    "name": "address",
+                                    "type": "object",
+                                    "optional": true
+                                  },
+                                  {
+                                    "label": "Line items",
+                                    "name": "line_items",
+                                    "type": "array",
+                                    "optional": true,
+                                    "of": "object",
+                                    "properties": [
+                                      {
+                                        "control_type": "text",
+                                        "label": "Item Description",
+                                        "name": "item_description",
+                                        "type": "string",
+                                        "optional": true
+                                      },
+                                      {
+                                        "control_type": "text",
+                                        "label": "Quantity",
+                                        "parse_output": "float_conversion",
+                                        "name": "quantity",
+                                        "type": "number",
+                                        "optional": true,
+                                        "render_input": "float_conversion"
+                                      },
+                                      {
+                                        "control_type": "text",
+                                        "label": "Rate",
+                                        "parse_output": "float_conversion",
+                                        "name": "rate",
+                                        "type": "number",
+                                        "optional": true,
+                                        "render_input": "float_conversion"
+                                      },
+                                      {
+                                        "control_type": "text",
+                                        "label": "Amount",
+                                        "parse_output": "float_conversion",
+                                        "name": "amount",
+                                        "type": "number",
+                                        "optional": true,
+                                        "render_input": "float_conversion"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Subtotal",
+                                    "parse_output": "float_conversion",
+                                    "name": "subtotal",
+                                    "type": "number",
+                                    "optional": true,
+                                    "render_input": "float_conversion"
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Tax",
+                                    "parse_output": "float_conversion",
+                                    "name": "tax",
+                                    "type": "number",
+                                    "optional": true,
+                                    "render_input": "float_conversion"
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Total",
+                                    "parse_output": "float_conversion",
+                                    "name": "total",
+                                    "type": "number",
+                                    "optional": true,
+                                    "render_input": "float_conversion"
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Balance due",
+                                    "parse_output": "float_conversion",
+                                    "name": "balance_due",
+                                    "type": "number",
+                                    "optional": true,
+                                    "render_input": "float_conversion"
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Currency",
+                                    "name": "currency",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "Terms",
+                                    "name": "terms",
+                                    "type": "string",
+                                    "optional": true
+                                  },
+                                  {
+                                    "control_type": "text",
+                                    "label": "File Type",
+                                    "name": "filetype",
+                                    "type": "string",
+                                    "optional": true
+                                  }
+                                ],
+                                "type": "object"
+                              }
+                            ],
+                            "comment": "Add invoice data (e.g., invoice number, amount, seller details) to the 'Success List'.",
+                            "uuid": "fa56a4db-a759-4787-a4f1-142c37af33f8",
+                            "skip": false
+                          }
+                        ],
+                        "comment": "If processing fails, handle error conditions and proceed with alternate workflows.",
+                        "uuid": "212e384b-7614-4650-b8b1-18f0a23875a0",
+                        "skip": false
+                      }
+                    ],
+                    "comment": "Check the status of processed invoices; if successful, proceed with storing processed data.",
+                    "uuid": "ac65555f-ab93-4d97-a68b-22c7f1feadd1",
+                    "skip": false
+                  }
+                ],
+                "source": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"py_eval\",\"line\":\"968114d5\",\"path\":[\"output\", \"chunks\"]}')}",
+                "comment": "Iterate through all line items extracted from the processed PDF pages.",
+                "uuid": "7647b5be-eba6-4c9c-b552-cbeba38abb29",
+                "skip": false
+              }
+            ],
+            "source": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"outlook\",\"line\":\"3bd892c9\",\"path\":[\"Attachments\"]}')}",
+            "comment": "Processes each invoice attachment one by one.",
+            "uuid": "1960840a-aebf-4952-b1bc-d45870a23785",
+            "skip": false
+          },
+          {
+            "number": 16,
+            "as": "5060e58b",
+            "keyword": "catch",
+            "input": {
+              "max_retry_count": "0",
+              "retry_interval": "2"
+            },
+            "block": [
+              {
+                "number": 17,
+                "provider": "email",
+                "name": "send_mail",
+                "as": "b9337a91",
+                "keyword": "action",
+                "input": {
+                  "email_type": "html",
+                  "to": "Himaja.Tirumani@infoteck.solutions",
+                  "subject": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"catch\",\"line\":\"5060e58b\",\"path\":[\"message\"]}')}",
+                  "body": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"catch\",\"line\":\"5060e58b\",\"path\":[\"type\"]}')}"
+                },
+                "comment": "Send an email notification to alert about errors encountered during processing, with the error type and message in the subject and body respectively.",
+                "uuid": "391d448f-1235-4995-a5a2-70a60e759068",
+                "skip": false
+              }
+            ],
+            "comment": "Error handling: Catch Workato-specific errors encountered during the monitored process.",
+            "uuid": "214a8baf-c4ea-4ab7-be70-d089977ebe8f",
+            "skip": false
+          }
+        ],
+        "comment": "Use a monitor block to handle retries or to execute the following steps if no errors occur.",
+        "uuid": "5fc2be96-bf62-4fc3-a8b8-9761648d22ef",
+        "skip": false
+      }
+    ],
+    "comment": "Trigger: Fetch new emails from an Outlook mailbox to check for emails containing 'Invoice' in the subject.",
+    "job_report_schema": [
+      {
+        "name": "custom_column_0",
+        "label": "Error Message"
+      },
+      {
+        "name": "custom_column_1",
+        "label": "Invoice Number"
+      },
+      {
+        "name": "custom_column_3",
+        "label": "Amount"
+      },
+      {
+        "name": "custom_column_4",
+        "label": "Due Date"
+      }
+    ],
+    "job_report_config": {
+      "custom_column_0": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"catch\",\"line\":\"5060e58b\",\"path\":[\"message\"]}')}",
+      "custom_column_1": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_idp\",\"line\":\"3867602f\",\"path\":[\"values\",\"invoice_number\"]}')}",
+      "custom_column_3": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_db_table\",\"line\":\"53eab957\",\"path\":[\"record\",\"d099870a_2e2c_4948_aa14_62783bf3a84a\"]}')}",
+      "custom_column_4": "#{_dp('{\"pill_type\":\"output\",\"provider\":\"workato_db_table\",\"line\":\"53eab957\",\"path\":[\"record\",\"f8047d30_90bd_4763_980d_ec0ae5ae38fb\"]}')}"
+    },
+    "uuid": "7054eb82-fe05-4cac-8360-435615c94be6",
+    "skip": false
+  },
+  "config": [
+    {
+      "keyword": "application",
+      "provider": "outlook",
+      "skip_validation": false,
+      "account_id": {
+        "zip_name": "idp_invoice_processing_outlook.connection.json",
+        "name": "IDP Invoice Processing outlook",
+        "folder": ""
+      }
+    },
+    {
+      "keyword": "application",
+      "provider": "email",
+      "skip_validation": false,
+      "account_id": null
+    },
+    {
+      "keyword": "application",
+      "provider": "workato_idp",
+      "skip_validation": false,
+      "account_id": null
+    },
+    {
+      "keyword": "application",
+      "provider": "workato_db_table",
+      "skip_validation": false,
+      "account_id": null
+    },
+    {
+      "keyword": "application",
+      "provider": "workato_variable",
+      "skip_validation": false,
+      "account_id": null
+    },
+    {
+      "keyword": "application",
+      "provider": "py_eval",
+      "skip_validation": false,
+      "account_id": null
+    }
+  ]
+}
