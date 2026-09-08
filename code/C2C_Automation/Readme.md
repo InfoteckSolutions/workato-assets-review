@@ -2,13 +2,13 @@
 
 This package includes the following files required to set up the Customer-to-Cash Automation:
 
-- c2c_workflow_c2c_workflow_app.zip
+- `c2c_workflow_c2c_workflow_app.zip`
 Contains all Workflow App pages required for the Customer-to-Cash Automation.
 
-- c2c_automation_customer-2-cash.zip
+- `c2c_automation_customer-2-cash.zip`
 Contains all end-to-end recipes required for the Customer-to-Cash Automation.
 
-- Supabase_Connection.zip
+- `Supabase_Connection.zip`
 Contains the Supabase connection used as the ERP system for the Customer-to-Cash Automation.
 
 ## Import Order
