@@ -1,4 +1,4 @@
-**Customer-to-Cash Automation**
+# Customer-to-Cash Automation
 
 This package includes the following files required to set up the Customer-to-Cash Automation:
 
