@@ -19,4 +19,5 @@ All files must be imported into the same project in the exact order below to com
 7. Import interviewer_feedback_interviewer-feedback-form into the same project.
 8. Import offer-letter_offer-letter into the same project.
 9. Import onboarding_onboarding into the same project.
+
 Once all files have been imported into the same project in this sequence, configure the relevant connection parameters to complete the Employee Onboarding Automation setup.
