@@ -1,4 +1,4 @@
-# Employee Offboarding Automation
+# Zoho Employee Offboarding Automation
 This package includes the following files required to set up the Employee Offboarding Automation:
 - resignation_resignation: Contains the recipes and components required for employee resignation submission and approval workflows.
 - common_common: Contains common utility recipes, shared data models, and core notification components used across the entire offboarding lifecycle.
